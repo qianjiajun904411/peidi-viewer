@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1117">
+<title>沛迪受控文件校验工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface-hover:#1c2128;--border:#30363d;
+  --primary:#58a6ff;--success:#3fb950;--warning:#d29922;--error:#f85149;
+  --text:#e6edf3;--text-muted:#8b949e;--radius:12px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;display:flex;flex-direction:column}
+
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-left{display:flex;align-items:center;gap:8px}
+.topbar-title{font-size:16px;font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.status-badge{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.status-active{background:rgba(63,185,80,.2);color:var(--success)}
+.status-expired{background:rgba(248,81,73,.2);color:var(--error)}
+.status-days{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+.content.has-viewer{padding:0;display:flex;flex-direction:column}
+
+.page{display:none;flex:1;flex-direction:column;min-height:0}
+.page.active{display:flex}
+
+.activate-page{align-items:center;justify-content:center;padding:24px}
+.activate-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px 24px;max-width:420px;width:100%;text-align:center}
+.activate-icon{font-size:56px;margin-bottom:16px}
+.activate-title{font-size:22px;font-weight:700;margin-bottom:8px}
+.activate-desc{font-size:14px;color:var(--text-muted);margin-bottom:24px;line-height:1.6}
+.activate-input{width:100%;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;outline:none;transition:border-color .2s;font-family:inherit;resize:none;min-height:80px;line-height:1.5}
+.activate-input:focus{border-color:var(--primary)}
+.activate-input::placeholder{color:var(--text-muted)}
+.btn{width:100%;padding:14px;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:12px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:#4493f8}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.breathe-red{background:var(--error);animation:breatheRed 1.8s ease-in-out infinite}
+@keyframes breatheRed{0%,100%{box-shadow:0 0 0 1px rgba(248,81,73,.4),0 0 6px rgba(248,81,73,.3)}50%{box-shadow:0 0 0 2px rgba(248,81,73,.9),0 0 16px rgba(248,81,73,.7)}}
+.btn-secondary{background:var(--surface-hover);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--primary)}
+.activate-error{color:var(--error);font-size:13px;margin-top:8px;display:none}
+.activate-error.show{display:block}
+.activate-info{margin-top:20px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text-muted);line-height:1.6;text-align:left}
+
+.home-page{padding:16px}
+.home-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;text-align:center}
+.home-icon{font-size:48px;margin-bottom:12px}
+.home-title{font-size:18px;font-weight:600;margin-bottom:8px}
+.home-desc{font-size:14px;color:var(--text-muted);line-height:1.6;margin-bottom:20px}
+
+.file-picker{border:2px dashed var(--border);border-radius:12px;padding:36px 16px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.file-picker:hover,.file-picker:active{border-color:var(--primary);background:rgba(88,166,255,.05)}
+.file-picker-icon{font-size:36px;margin-bottom:8px}
+.file-picker-text{font-size:15px;color:var(--text);margin-bottom:4px}
+.file-picker-hint{font-size:12px;color:var(--text-muted)}
+.file-picker input[type=file]{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer}
+
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.info-item{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.info-item-label{font-size:11px;color:var(--text-muted);margin-bottom:4px}
+.info-item-value{font-size:15px;font-weight:600}
+
+.expired-page{align-items:center;justify-content:center;padding:24px}
+.expired-card{background:var(--surface);border:1px solid rgba(248,81,73,.3);border-radius:var(--radius);padding:32px 24px;max-width:420px;width:100%;text-align:center}
+.expired-icon{font-size:56px;margin-bottom:16px}
+.expired-title{font-size:22px;font-weight:700;margin-bottom:8px;color:var(--error)}
+.expired-desc{font-size:14px;color:var(--text-muted);margin-bottom:24px;line-height:1.6}
+.expired-info{margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text-muted);line-height:1.6;text-align:left}
+
+.viewer-page{display:none;flex:1;flex-direction:column;min-height:0}
+.viewer-page.active{display:flex}
+.viewer-header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.viewer-back{background:none;border:none;color:var(--primary);font-size:14px;cursor:pointer;padding:8px;display:flex;align-items:center;gap:4px}
+.viewer-filename{flex:1;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viewer-frame{flex:1;border:none;background:#fff;width:100%;min-height:0}
+.topbar.hidden,.viewer-header.hidden{display:none}
+.show-bar-btn{position:fixed;top:8px;right:8px;width:32px;height:32px;border-radius:50%;background:rgba(88,166,255,.9);border:none;color:#fff;font-size:16px;cursor:pointer;z-index:9999;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);background:var(--success);color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:500;transition:transform .3s;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:90%;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.error{background:var(--error)}
+
+.loading{position:fixed;inset:0;background:rgba(13,17,23,.8);display:none;align-items:center;justify-content:center;z-index:998}
+.loading.show{display:flex}
+.loading-content{text-align:center}
+.loading-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--text-muted)}
+
+.menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:997}
+.menu-overlay.show{display:block}
+.menu{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);border-radius:16px 16px 0 0;padding:16px 16px 32px;z-index:998;transform:translateY(100%);transition:transform .3s}
+.menu.show{transform:translateY(0)}
+.menu-item{padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-radius:8px;font-size:15px}
+.menu-item:active{background:var(--surface-hover)}
+.menu-item-icon{font-size:20px}
+.menu-divider{height:1px;background:var(--border);margin:4px 0}
+
+.icon-btn{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px}
+.icon-btn:active{background:var(--surface-hover)}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar">
+  <div class="topbar-left">
+    <span style="font-size:18px">📄</span>
+    <div>
+      <div class="topbar-title">沛迪受控文件校验工具</div>
+      <div class="status-days" id="statusDays"></div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-badge" id="statusBadge">未激活</div>
+    <button class="icon-btn" id="menuBtn" style="display:none">⋮</button>
+  </div>
+</div>
+
+<div class="content" id="content">
+
+  <div class="page active activate-page" id="activatePage">
+    <div class="activate-card">
+      <div class="activate-icon">🔐</div>
+      <div class="activate-title">激活校验工具</div>
+      <div class="activate-desc">请输入秘钥激活校验工具<br>激活后可查看加密的受控文件</div>
+      <textarea class="activate-input" id="keyInput" placeholder="在此粘贴秘钥（以 WB1- 开头）" rows="3"></textarea>
+      <div class="activate-error" id="activateError"></div>
+      <button class="btn btn-primary" id="activateBtn">🔑 激活</button>
+      <div class="activate-info">
+        <strong>说明：</strong><br>
+        • 秘钥由沛迪管理员提供<br>
+        • 工具要联网验证授权，未联网无法使用<br>
+        • 受控文件受保密协议保护，泄露将依法追责
+      </div>
+    </div>
+  </div>
+
+  <div class="page home-page" id="homePage">
+    <div class="home-card">
+      <div class="home-icon">📂</div>
+      <div class="home-title">选择加密的受控文件</div>
+      <div class="home-desc">点击下方区域选择对应产品型号的 .enchtml 文件<br>进行授权验证</div>
+      <div class="file-picker" id="filePicker">
+        <div class="file-picker-icon">📁</div>
+        <div class="file-picker-text">点击选择加密文件</div>
+        <div class="file-picker-hint">支持 .enchtml 格式</div>
+        <input type="file" id="fileInput" accept=".enchtml">
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-item-label">激活状态</div>
+        <div class="info-item-value" id="infoStatus" style="color:var(--success)">已激活</div>
+      </div>
+      <div class="info-item">
+        <div class="info-item-label">剩余天数</div>
+        <div class="info-item-value" id="infoDays">-</div>
+      </div>
+      <div class="info-item">
+        <div class="info-item-label">过期时间</div>
+        <div class="info-item-value" id="infoExpire" style="font-size:13px">-</div>
+      </div>
+      <div class="info-item">
+        <div class="info-item-label">远端授权</div>
+        <div class="info-item-value" id="infoNetwork" style="font-size:13px;color:var(--text-muted)">连接中...</div>
+      </div>
+      <div class="info-item">
+        <div class="info-item-label">位置围栏</div>
+        <div class="info-item-value" id="infoGeo" style="font-size:13px;color:var(--text-muted)">校验中...</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-muted);line-height:1.6">
+      <strong style="color:var(--text)">使用说明</strong><br>
+      1. 申请相关受控文件下发<br>
+      2. 将 .enchtml 文件传到手机<br>
+      3. 点击上方区域选择文件检验授权后即可查看
+    </div>
+  </div>
+
+  <div class="page expired-page" id="expiredPage">
+    <div class="expired-card">
+      <div class="expired-icon">⏰</div>
+      <div class="expired-title">激活已过期</div>
+      <div class="expired-desc">校验工具可以正常打开<br>但无法查看受控文件<br><br>请向沛迪管理员申请新秘钥<br>重新激活后即可继续使用</div>
+      <button class="btn btn-primary" id="reactivateBtn">🔑 重新激活</button>
+      <div class="expired-info">
+        <strong>过期时间：</strong><span id="expiredTime">-</span><br>
+        <strong>当前时间：</strong><span id="expiredNow">-</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page expired-page" id="networkPage">
+    <div class="expired-card">
+      <div class="expired-icon">📡</div>
+      <div class="expired-title" style="color:var(--warning)">需要网络连接</div>
+      <div class="expired-desc">本工具必须连接授权服务器进行校验<br>未授权或未获得服务器秘钥验证时<br>无法使用任何功能<br><br>请检查网络连接后重试</div>
+      <button class="btn btn-primary breathe-red" id="retryNetworkBtn">🔄 重试</button>
+    </div>
+  </div>
+
+  <div class="page expired-page" id="geoPage">
+    <div class="expired-card">
+      <div class="expired-icon">📍</div>
+      <div class="expired-title" style="color:var(--warning)">需要地理位置授权</div>
+      <div class="expired-desc" id="geoDesc">本工具需在授权范围内（中心 2000 米内）使用<br>未授权或超出授权范围时<br>无法使用任何功能<br><br>请检查定位权限后重试</div>
+      <button class="btn btn-primary breathe-red" id="retryGeoBtn">🔄 重试</button>
+    </div>
+  </div>
+
+  <div class="page viewer-page" id="viewerPage">
+    <div class="viewer-header">
+      <button class="viewer-back" id="viewerBack">← 返回</button>
+      <div class="viewer-filename" id="viewerFilename">-</div>
+      <button class="viewer-back" id="hideBarBtn" style="font-size:13px;padding:4px 8px">⛶ 隐藏标题栏</button>
+    </div>
+    <iframe class="viewer-frame" id="viewerFrame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
+    <button class="show-bar-btn" id="showBarBtn">⛶</button>
+  </div>
+
+</div>
+
+<div class="loading" id="loading">
+  <div class="loading-content">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">正在解密...</div>
+  </div>
+</div>
+
+<div class="menu-overlay" id="menuOverlay"></div>
+<div class="menu" id="menu">
+  <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 12px"></div>
+  <div class="menu-item" id="menuHome">
+    <span class="menu-item-icon">🏠</span>
+    <span>返回首页</span>
+  </div>
+  <div class="menu-item" id="menuReactivate">
+    <span class="menu-item-icon">🔑</span>
+    <span>重新激活</span>
+  </div>
+  <div class="menu-divider"></div>
+  <div class="menu-item" id="menuAbout">
+    <span class="menu-item-icon">ℹ️</span>
+    <span>关于</span>
+  </div>
+</div>
+
+<div class="toast" id="toast">操作成功</div>
+
+<script>
+// ============ 共享常量 ============
+const HMAC_SECRET = 'WB-HTML-Encrypt-2024-UniqueSecretKey-v1';
+const AES_PASSPHRASE = 'WB-HTML-Encrypt-2024-AESKey-v1';
+const KEY_PREFIX = 'WB1-';
+const STORAGE_KEY = 'wb_viewer_activation';
+
+// ============ 地理围栏 (GPS) ============
+// 授权中心：浙江省金华市永康市前仓镇双丰路8号（双丰路坐标 28.797903, 120.085741）
+const GEO_CENTER = { lat: 28.797903, lng: 120.085741 };
+// 允许半径（米）
+const GEO_RADIUS = 2000;
+// 激活剩余有效时间 > 30天 则关闭围栏限制（秒）
+const GEO_DISABLE_THRESHOLD = 30 * 86400;
+// 位置校验结果缓存有效期（毫秒），避免频繁弹定位
+const GEO_CACHE_TTL = 60000;
+
+// ============ 联网校时（北京时间）============
+let networkTimeOffset = 0;
+let networkTimeAvailable = false;
+
+async function fetchNetworkTime() {
+  const apis = [
+    { url: 'https://worldtimeapi.org/api/timezone/Asia/Shanghai', parse: d => d.unixtime },
+    { url: 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Shanghai', parse: d => Math.floor(new Date(d.dateTime).getTime() / 1000) }
+  ];
+  for (const api of apis) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 5000);
+      const resp = await fetch(api.url, { signal: ctrl.signal, cache: 'no-store' });
+      clearTimeout(tid);
+      if (resp.ok) {
+        const data = await resp.json();
+        const t = api.parse(data);
+        if (t && t > 1700000000) {
+          networkTimeOffset = t - Math.floor(Date.now() / 1000);
+          networkTimeAvailable = true;
+          return t;
+        }
+      }
+    } catch (e) { console.log('时间API失败:', api.url, e.message); }
+  }
+  networkTimeAvailable = false;
+  networkTimeOffset = 0;
+  return null;
+}
+
+function getCurrentTime() {
+  return Math.floor(Date.now() / 1000) + networkTimeOffset;
+}
+
+// ============ HMAC 验签 ============
+async function hmacSign(data, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ============ 验证激活秘钥 ============
+async function validateKey(key) {
+  key = key.trim();
+  if (!key.startsWith(KEY_PREFIX)) return { valid: false, error: '秘钥格式错误，应以 WB1- 开头' };
+  try {
+    const payload = JSON.parse(atob(key.substring(KEY_PREFIX.length)));
+    if (!payload.exp || !payload.sig) return { valid: false, error: '秘钥内容不完整' };
+    const expectedSig = await hmacSign(String(payload.exp), HMAC_SECRET);
+    if (expectedSig !== payload.sig) return { valid: false, error: '秘钥签名验证失败，可能被篡改' };
+    const now = getCurrentTime();
+    if (now > payload.exp) return { valid: false, error: '秘钥已过期', expired: true, exp: payload.exp };
+    return { valid: true, exp: payload.exp };
+  } catch (e) {
+    return { valid: false, error: '秘钥解析失败，格式不正确' };
+  }
+}
+
+// ============ AES 解密 ============
+async function deriveKey(passphrase, salt) {
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+}
+
+async function decryptData(encryptedData, passphrase) {
+  const salt = encryptedData.slice(0, 16);
+  const iv = encryptedData.slice(16, 28);
+  const data = encryptedData.slice(28);
+  const key = await deriveKey(passphrase, salt);
+  return await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+}
+
+// ============ 地理围栏 (GPS) ============
+let _geoCache = null;
+
+// 是否需要围栏：剩余有效时间 <= 30天 才需要
+function geoRequired(exp) {
+  return (exp - getCurrentTime()) <= GEO_DISABLE_THRESHOLD;
+}
+
+// 两点间距离（米），haversine 公式
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 获取 GPS 位置并判断是否在授权范围内
+function getGeoPosition() {
+  return new Promise((resolve) => {
+    // file:// 协议下多数安卓浏览器会静默拒绝 geolocation，不弹窗
+    if (location.protocol === 'file:') {
+      resolve({ ok: false, error: '通过文件直接打开时浏览器可能不支持定位\n请使用 Chrome 浏览器，通过 HTTPS 打开本工具\n或将本工具部署到 HTTPS 服务器后访问' });
+      return;
+    }
+    // 安全上下文检测：geolocation 仅在 HTTPS / localhost 下可用
+    if (!window.isSecureContext) {
+      resolve({ ok: false, error: '当前环境不支持定位（非安全上下文）\n请通过 HTTPS 打开本工具' });
+      return;
+    }
+    if (!navigator.geolocation) {
+      resolve({ ok: false, error: '设备不支持定位' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const dist = haversine(GEO_CENTER.lat, GEO_CENTER.lng, pos.coords.latitude, pos.coords.longitude);
+        if (dist <= GEO_RADIUS) resolve({ ok: true, dist: Math.round(dist) });
+        else resolve({ ok: false, error: '超出授权范围', dist: Math.round(dist) });
+      },
+      (err) => {
+        let msg;
+        switch (err.code) {
+          case 1: // PERMISSION_DENIED
+            msg = '定位权限被拒绝\n请在浏览器设置中允许定位权限后重试';
+            break;
+          case 2: // POSITION_UNAVAILABLE
+            msg = '无法获取位置信息\n请检查设备 GPS 是否开启';
+            break;
+          case 3: // TIMEOUT
+            msg = '定位超时\n请到开阔处重试';
+            break;
+          default:
+            msg = '定位失败（未知原因）';
+        }
+        resolve({ ok: false, error: msg });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
+
+// 校验地理围栏。force=true 时忽略缓存，重新取位置
+async function verifyGeo(force = false) {
+  // 长有效期秘钥免围栏
+  if (activation && !geoRequired(activation.exp)) {
+    return { ok: true, disabled: true };
+  }
+  if (!force && _geoCache && Date.now() - _geoCache.ts < GEO_CACHE_TTL) {
+    return _geoCache.ok ? { ok: true } : { ok: false, error: _geoCache.error };
+  }
+  const g = await getGeoPosition();
+  _geoCache = { ok: g.ok, error: g.error, ts: Date.now() };
+  return g;
+}
+
+// ============ UI 逻辑 ============
+let activation = null;
+
+function fmtTime(ts) {
+  const d = new Date(ts * 1000), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtNow() {
+  const d = new Date(getCurrentTime() * 1000), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function updateNetworkStatus() {
+  const el = document.getElementById('infoNetwork');
+  if (!el) return;
+  if (networkTimeAvailable) { el.textContent = '以获取远端授权（请保持连接）'; el.style.color = 'var(--success)'; }
+  else { el.textContent = '未联网(已阻断)'; el.style.color = 'var(--error)'; }
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('content').classList.toggle('has-viewer', id === 'viewerPage');
+}
+
+async function init() {
+  showLoading('正在连接服务器...');
+  const t = await fetchNetworkTime();
+  hideLoading();
+  if (!t) { showNetworkError(); return; }
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) { try { activation = JSON.parse(stored); } catch(e) { activation = null; } }
+  if (!activation) { showPage('activatePage'); return; }
+  await checkActivation();
+}
+
+function showNetworkError() {
+  const sb = document.getElementById('statusBadge'), sd = document.getElementById('statusDays'), mb = document.getElementById('menuBtn');
+  sb.textContent='未联网'; sb.className='status-badge status-expired'; sd.textContent=''; mb.style.display='none';
+  showPage('networkPage');
+}
+
+function showGeoError(msg) {
+  const sb = document.getElementById('statusBadge'), sd = document.getElementById('statusDays'), mb = document.getElementById('menuBtn');
+  sb.textContent='未授权'; sb.className='status-badge status-expired'; sd.textContent=''; mb.style.display='none';
+  if (msg) document.getElementById('geoDesc').innerHTML = msg.replace(/\n/g, '<br>') + '<br><br>请检查定位权限或是否在授权范围内后重试';
+  showPage('geoPage');
+}
+
+async function checkActivation() {
+  const sb = document.getElementById('statusBadge'), sd = document.getElementById('statusDays'), mb = document.getElementById('menuBtn');
+  if (!activation) {
+    sb.textContent='未激活'; sb.className='status-badge status-expired'; sd.textContent=''; mb.style.display='none';
+    showPage('activatePage'); return;
+  }
+  // 必须联网校时
+  if (!networkTimeAvailable) {
+    showNetworkError(); return;
+  }
+  const result = await validateKey(activation.key);
+  const now = getCurrentTime();
+
+  if (!result.valid && result.expired) {
+    sb.textContent='已过期'; sb.className='status-badge status-expired'; sd.textContent=''; mb.style.display='block';
+    document.getElementById('expiredTime').textContent = fmtTime(activation.exp);
+    document.getElementById('expiredNow').textContent = fmtNow();
+    showPage('expiredPage'); return;
+  }
+  if (!result.valid) {
+    localStorage.removeItem(STORAGE_KEY); activation = null;
+    sb.textContent='未激活'; sb.className='status-badge status-expired'; sd.textContent=''; mb.style.display='none';
+    showPage('activatePage'); return;
+  }
+
+  // 地理围栏校验
+  const geo = await verifyGeo();
+  if (!geo.ok) { showGeoError(geo.error); return; }
+
+  const rd = Math.ceil((result.exp - now) / 86400);
+  sb.textContent='已激活'; sb.className='status-badge status-active'; sd.textContent=`剩余 ${rd} 天`; mb.style.display='block';
+  document.getElementById('infoStatus').textContent='已激活'; document.getElementById('infoStatus').style.color='var(--success)';
+  document.getElementById('infoDays').textContent = rd + ' 天';
+  document.getElementById('infoExpire').textContent = fmtTime(result.exp);
+  updateNetworkStatus();
+  // 位置围栏状态
+  const gi = document.getElementById('infoGeo');
+  if (geo.disabled) { gi.textContent = '免围栏(长秘钥)'; gi.style.color = 'var(--success)'; }
+  else if (geo.dist !== undefined) { gi.textContent = `位置信息已上传(${geo.dist}m)`; gi.style.color = 'var(--success)'; }
+  else { gi.textContent = '位置信息已上传'; gi.style.color = 'var(--success)'; }
+  showPage('homePage');
+
+  if (!window._ci) {
+    window._ci = setInterval(async () => {
+      if (!document.getElementById('homePage').classList.contains('active')) return;
+      // 定期重新联网校时，网络断开则阻断
+      const t = await fetchNetworkTime();
+      if (!t) { showNetworkError(); return; }
+      const n = getCurrentTime();
+      if (n > result.exp) checkActivation();
+    }, 30000);
+  }
+}
+
+document.getElementById('activateBtn').addEventListener('click', async () => {
+  const ki = document.getElementById('keyInput'), ee = document.getElementById('activateError'), btn = document.getElementById('activateBtn');
+  const key = ki.value.trim();
+  if (!key) { ee.textContent='请输入秘钥'; ee.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent='⏳ 验证中...'; ee.classList.remove('show');
+  _geoCache = null;
+  showLoading('正在连接服务器...');
+  const t = await fetchNetworkTime();
+  hideLoading();
+  if (!t) { ee.textContent='联网校时失败，请检查网络连接'; ee.classList.add('show'); btn.disabled=false; btn.textContent='🔑 激活'; showNetworkError(); return; }
+  const result = await validateKey(key);
+  if (result.valid) {
+    activation = { key, exp: result.exp };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(activation));
+    ki.value = ''; showToast('激活成功！');
+    await checkActivation();
+  } else { ee.textContent = result.error; ee.classList.add('show'); }
+  btn.disabled = false; btn.textContent='🔑 激活';
+});
+
+document.getElementById('reactivateBtn').addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_KEY); activation = null;
+  document.getElementById('keyInput').value = '';
+  document.getElementById('statusBadge').textContent='未激活';
+  document.getElementById('statusBadge').className='status-badge status-expired';
+  document.getElementById('statusDays').textContent='';
+  document.getElementById('menuBtn').style.display='none';
+  showPage('activatePage');
+});
+
+document.getElementById('retryNetworkBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('retryNetworkBtn');
+  btn.disabled = true; btn.textContent = '⏳ 校验中...';
+  showLoading('正在连接服务器...');
+  const t = await fetchNetworkTime();
+  hideLoading();
+  btn.disabled = false; btn.textContent = '🔄 重新联网校验';
+  if (!t) { showToast('联网失败，请检查网络', true); return; }
+  showToast('联网校时成功');
+  await init();
+});
+
+document.getElementById('retryGeoBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('retryGeoBtn');
+  btn.disabled = true; btn.textContent = '⏳ 校验中...';
+  showLoading('正在获取位置...');
+  const geo = await verifyGeo(true);
+  hideLoading();
+  btn.disabled = false; btn.textContent = '🔄 重试';
+  if (!geo.ok) { showToast(geo.error || '位置校验失败', true); return; }
+  showToast('位置校验通过');
+  await checkActivation();
+});
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!activation) { showToast('请先激活校验工具', true); return; }
+  showLoading('正在联网校验...');
+  const t = await fetchNetworkTime();
+  if (!t) { hideLoading(); showToast('联网校时失败，无法验证', true); showNetworkError(); e.target.value=''; return; }
+  const result = await validateKey(activation.key);
+  if (!result.valid) { hideLoading(); showToast('激活已过期，请重新激活', true); await checkActivation(); return; }
+  // 地理围栏（强制重新取位置）
+  showLoading('正在校验位置...');
+  const geo = await verifyGeo(true);
+  if (!geo.ok) { hideLoading(); showToast(geo.error || '位置校验失败', true); showGeoError(geo.error); e.target.value=''; return; }
+  if (!file.name.endsWith('.enchtml')) { hideLoading(); showToast('请选择 .enchtml 格式的加密文件', true); e.target.value=''; return; }
+  showLoading('正在解密...');
+  try {
+    const ed = new Uint8Array(await file.arrayBuffer());
+    if (ed.length < 28) throw new Error('文件格式不正确');
+    const dec = await decryptData(ed, AES_PASSPHRASE);
+    const html = new TextDecoder().decode(dec);
+    const frame = document.getElementById('viewerFrame');
+    frame.src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    document.getElementById('viewerFilename').textContent = file.name;
+    showPage('viewerPage'); hideLoading(); showToast('授权验证通过');
+    // 默认收起标题栏
+    hideBars();
+  } catch(err) { hideLoading(); showToast('解密失败: ' + err.message, true); }
+  e.target.value = '';
+});
+
+document.getElementById('viewerBack').addEventListener('click', async () => {
+  document.getElementById('viewerFrame').src = 'about:blank';
+  restoreBars();
+  showLoading('正在连接服务器...');
+  await fetchNetworkTime();
+  hideLoading();
+  await checkActivation();
+});
+
+// 隐藏/显示标题栏
+function hideBars() {
+  document.getElementById('topbar').classList.add('hidden');
+  document.querySelector('.viewer-header').classList.add('hidden');
+  document.getElementById('showBarBtn').style.display = 'flex';
+}
+function showBars() {
+  document.getElementById('topbar').classList.remove('hidden');
+  document.querySelector('.viewer-header').classList.remove('hidden');
+  document.getElementById('showBarBtn').style.display = 'none';
+}
+function restoreBars() { showBars(); }
+document.getElementById('hideBarBtn').addEventListener('click', () => { hideBars(); });
+document.getElementById('showBarBtn').addEventListener('click', () => { showBars(); });
+
+document.getElementById('menuBtn').addEventListener('click', () => {
+  document.getElementById('menuOverlay').classList.add('show');
+  document.getElementById('menu').classList.add('show');
+});
+document.getElementById('menuOverlay').addEventListener('click', () => {
+  document.getElementById('menuOverlay').classList.remove('show');
+  document.getElementById('menu').classList.remove('show');
+});
+document.getElementById('menuHome').addEventListener('click', async () => {
+  closeMenu(); document.getElementById('viewerFrame').src='about:blank';
+  restoreBars();
+  showLoading('正在连接服务器...');
+  await fetchNetworkTime();
+  hideLoading();
+  await checkActivation();
+});
+document.getElementById('menuReactivate').addEventListener('click', () => {
+  closeMenu(); localStorage.removeItem(STORAGE_KEY); activation=null;
+  document.getElementById('keyInput').value=''; document.getElementById('viewerFrame').src='about:blank';
+  restoreBars();
+  document.getElementById('statusBadge').textContent='未激活';
+  document.getElementById('statusBadge').className='status-badge status-expired';
+  document.getElementById('statusDays').textContent='';
+  document.getElementById('menuBtn').style.display='none';
+  showPage('activatePage');
+});
+document.getElementById('menuAbout').addEventListener('click', () => {
+  closeMenu(); showToast('沛迪受控文件校验工具 v2.2 | AES-GCM加密 · 强制联网 · 地理围栏', false);
+});
+
+function closeMenu() {
+  document.getElementById('menuOverlay').classList.remove('show');
+  document.getElementById('menu').classList.remove('show');
+}
+function showToast(msg, err) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (err ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || '加载中...';
+  document.getElementById('loading').classList.add('show');
+}
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+init();
+</script>
+</body>
+</html>
