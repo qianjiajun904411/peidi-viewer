@@ -261,11 +261,42 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
 <div class="toast" id="toast">操作成功</div>
 
 <script>
-// ============ 共享常量 ============
-const HMAC_SECRET = 'WB-HTML-Encrypt-2024-UniqueSecretKey-v1';
-const AES_PASSPHRASE = 'WB-HTML-Encrypt-2024-AESKey-v1';
+// ============ 受控密钥（运行时重建，避免明文常量化）============
+// 纯前端无法真正隐藏密钥；此处采用「异或混淆 + 运行时重建 + 完整性自校验 + 反调试清空」尽可能提高门槛。
+// 若需真正不可绕过，必须把验签与密钥下发移至服务端（见仓库说明）。密钥「值」保持不变以确保旧文件/旧秘钥兼容。
+const _MSK = [158, 58, 199, 20];
+const _HK = [201, 120, 234, 92, 202, 119, 139, 57, 219, 84, 164, 102, 231, 74, 179, 57, 172, 10, 245, 32, 179, 111, 169, 125, 239, 79, 162, 71, 251, 89, 181, 113, 234, 113, 162, 109, 179, 76, 246];
+const _AK = [201, 120, 234, 92, 202, 119, 139, 57, 219, 84, 164, 102, 231, 74, 179, 57, 172, 10, 245, 32, 179, 123, 130, 71, 213, 95, 190, 57, 232, 11];
+const _sec = (function () {
+  const _cg = c => String.fromCharCode(c);
+  function _asm(arr) { let s = ''; for (let i = 0; i < arr.length; i++) s += _cg(arr[i] ^ _MSK[i % _MSK.length]); return s; }
+  let _h = null, _a = null;
+  return {
+    hmac() { if (_h === null) _h = _asm(_HK); return _h; },
+    aes()  { if (_a === null) _a = _asm(_AK); return _a; },
+    clear() { _h = null; _a = null; }
+  };
+})();
+// 反调试：DevTools 打开导致窗口尺寸差时，清空内存中的密钥，避免暂停提取
+(function () {
+  let _o = false;
+  setInterval(() => {
+    const w = (window.outerWidth - window.innerWidth > 160) || (window.outerHeight - window.innerHeight > 160);
+    if (w && !_o) { _o = true; _sec.clear(); }
+    if (!w) _o = false;
+  }, 1000);
+})();
 const KEY_PREFIX = 'WB1-';
 const STORAGE_KEY = 'wb_viewer_activation';
+// 完整性自校验：用真实密钥对一个已知向量签名，若不符说明常量被篡改则终止
+let _selfChecked = false;
+async function _selfCheck() {
+  const exp = 2000000000;
+  const expect = 'a078afc74fc0a56f4d29e1e51a009e0b20f551126a7590e822f803a49c61feea';
+  const got = await hmacSign(String(exp), _sec.hmac());
+  if (got !== expect) { _sec.clear(); throw new Error('integrity'); }
+}
+async function ensureIntegrity() { if (!_selfChecked) { await _selfCheck(); _selfChecked = true; } }
 
 // ============ 地理围栏 (GPS) ============
 // 授权中心：浙江省金华市永康市前仓镇双丰路8号（双丰路坐标 28.797903, 120.085741）
@@ -281,30 +312,24 @@ const GEO_CACHE_TTL = 60000;
 let networkTimeOffset = 0;
 let networkTimeAvailable = false;
 
+let _lastNetTs = 0;
 async function fetchNetworkTime() {
-  const apis = [
-    { url: 'https://worldtimeapi.org/api/timezone/Asia/Shanghai', parse: d => d.unixtime },
-    { url: 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Shanghai', parse: d => Math.floor(new Date(d.dateTime).getTime() / 1000) }
+  const jobs = [
+    (async () => { try { const c = new AbortController(); const id = setTimeout(() => c.abort(), 5000); const r = await fetch('https://www.cloudflare.com/cdn-cgi/trace', { signal: c.signal, cache: 'no-store' }); clearTimeout(id); const tx = await r.text(); const m = tx.match(/ts=(\d+)/); return m ? parseInt(m[1], 10) : null; } catch (e) { return null; } })(),
+    (async () => { try { const c = new AbortController(); const id = setTimeout(() => c.abort(), 5000); const r = await fetch('https://api.github.com', { method: 'HEAD', signal: c.signal, cache: 'no-store' }); clearTimeout(id); const d = r.headers.get('Date'); const ts = d ? Math.floor(new Date(d).getTime() / 1000) : 0; return ts > 1700000000 ? ts : null; } catch (e) { return null; } })(),
+    (async () => { try { const c = new AbortController(); const id = setTimeout(() => c.abort(), 5000); const r = await fetch('https://worldtimeapi.org/api/timezone/Asia/Shanghai', { signal: c.signal, cache: 'no-store' }); clearTimeout(id); if (!r.ok) return null; const d = await r.json(); return (d.unixtime && d.unixtime > 1700000000) ? d.unixtime : null; } catch (e) { return null; } })(),
+    (async () => { try { const c = new AbortController(); const id = setTimeout(() => c.abort(), 5000); const r = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=Asia/Shanghai', { signal: c.signal, cache: 'no-store' }); clearTimeout(id); if (!r.ok) return null; const d = await r.json(); const ts = Math.floor(new Date(d.dateTime).getTime() / 1000); return ts > 1700000000 ? ts : null; } catch (e) { return null; } })()
   ];
-  for (const api of apis) {
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 5000);
-      const resp = await fetch(api.url, { signal: ctrl.signal, cache: 'no-store' });
-      clearTimeout(tid);
-      if (resp.ok) {
-        const data = await resp.json();
-        const t = api.parse(data);
-        if (t && t > 1700000000) {
-          networkTimeOffset = t - Math.floor(Date.now() / 1000);
-          networkTimeAvailable = true;
-          return t;
-        }
-      }
-    } catch (e) { console.log('时间API失败:', api.url, e.message); }
+  const settled = await Promise.allSettled(jobs);
+  const vals = settled.map(s => s.status === 'fulfilled' ? s.value : null).filter(v => v && v > 1700000000);
+  if (vals.length) {
+    const best = vals[0];
+    networkTimeOffset = best - Math.floor(Date.now() / 1000);
+    networkTimeAvailable = true; _lastNetTs = Date.now();
+    return best;
   }
   networkTimeAvailable = false;
-  networkTimeOffset = 0;
+  if (Date.now() - _lastNetTs < 10 * 60 * 1000) networkTimeAvailable = true; // 短期离线宽限
   return null;
 }
 
@@ -325,9 +350,10 @@ async function validateKey(key) {
   key = key.trim();
   if (!key.startsWith(KEY_PREFIX)) return { valid: false, error: '秘钥格式错误，应以 WB1- 开头' };
   try {
+    await ensureIntegrity();
     const payload = JSON.parse(atob(key.substring(KEY_PREFIX.length)));
     if (!payload.exp || !payload.sig) return { valid: false, error: '秘钥内容不完整' };
-    const expectedSig = await hmacSign(String(payload.exp), HMAC_SECRET);
+    const expectedSig = await hmacSign(String(payload.exp), _sec.hmac());
     if (expectedSig !== payload.sig) return { valid: false, error: '秘钥签名验证失败，可能被篡改' };
     const now = getCurrentTime();
     if (now > payload.exp) return { valid: false, error: '秘钥已过期', expired: true, exp: payload.exp };
@@ -456,6 +482,7 @@ function showPage(id) {
 
 async function init() {
   showLoading('正在连接服务器...');
+  try { await ensureIntegrity(); } catch (e) { hideLoading(); showToast('环境完整性校验失败', true); return; }
   const t = await fetchNetworkTime();
   hideLoading();
   if (!t) { showNetworkError(); return; }
@@ -604,7 +631,7 @@ document.getElementById('fileInput').addEventListener('change', async (e) => {
   try {
     const ed = new Uint8Array(await file.arrayBuffer());
     if (ed.length < 28) throw new Error('文件格式不正确');
-    const dec = await decryptData(ed, AES_PASSPHRASE);
+    const dec = await decryptData(ed, _sec.aes());
     const html = new TextDecoder().decode(dec);
     const frame = document.getElementById('viewerFrame');
     frame.src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
